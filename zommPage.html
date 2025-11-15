@@ -7,7 +7,7 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
       rel="stylesheet"
     />
-    <link rel="icon" type="image/x-icon" href="./icon.png">
+    <link rel="icon" type="image/x-icon" href="./icon.png" />
     <style>
       :root {
         --bg-light: #f6f7fb;
@@ -33,7 +33,7 @@
         transition: background 0.3s, color 0.3s;
         box-sizing: border-box;
         overflow: hidden;
-        margin:0 auto 0 auto;
+        margin: 0 auto 0 auto;
       }
 
       body.dark {
@@ -150,10 +150,14 @@
         font-weight: 600;
         font-size: 20px;
         margin-bottom: 6px;
+        position: relative;
+        padding-right: 45px; /* space for badge */
+        display: flex;
+        align-items: center;
       }
 
       .price {
-        font-size:16px;
+        font-size: 16px;
         margin-bottom: 6px;
         color: var(--accent-light);
       }
@@ -217,83 +221,121 @@
         border: 3px solid #f1f1f1;
       }
 
-      
-      
-    .url-pill{
-      display:flex;
-      align-items:center;
-      justify-content: center;
-      gap:12px;
-      background:var(--pill);
-      padding:5px 12px;
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
-      border:1px solid rgba(0, 0, 0, 0.096);
-      width:96%;
-    }
+      .url-pill {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        background: var(--pill);
+        padding: 5px 12px;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        border: 1px solid rgba(126, 231, 140, 0.295);
+        width: 96%;
+      }
 
-    .url-text{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      font-size:14px;
-      color:#111827;
-      flex:1;
-    }
+      .url-text {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 14px;
+        color: #38e66cff;
+        flex: 1;
+      }
 
-    .url-text .protocol{
-      color:var(--muted);
-      margin-right:6px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Segoe UI Mono", monospace;
-      font-size:13px;
-    }
+      .url-text .protocol {
+        color: var(--muted);
+        margin-right: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono",
+          "Segoe UI Mono", monospace;
+        font-size: 13px;
+      }
 
-    .url-text .path{
-      color:#0f172aef;
-      font-weight:600;
-      font-size:14px;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
+      .url-text .path {
+        color: rgb(230, 140, 56);
+        font-size: 14px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
 
-    .copy-btn{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      gap:8px;
-      background:var(--accent);
-      border-radius:12px;
-      padding:6px 8px;
-      border: none;
-      cursor:pointer;
-      user-select:none;
-      transition:background .12s, transform .06s;
-      font-size:13px;
-    }
-    .copy-btn:hover{ background:var(--accent-hover); transform:translateY(-1px); }
-    .copy-btn:active{ transform:translateY(0); }
+      .copy-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: var(--accent);
+        border-radius: 12px;
+        padding: 6px 8px;
+        border: none;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.12s, transform 0.06s;
+        font-size: 13px;
+      }
+      .copy-btn:hover {
+        background: var(--accent-hover);
+        transform: translateY(-1px);
+      }
+      .copy-btn:active {
+        transform: translateY(0);
+      }
 
-    /* icon size */
-    .icon { width:18px; height:18px; display:inline-block; }
+      /* icon size */
+      .icon {
+        width: 18px;
+        height: 18px;
+        display: inline-block;
+      }
 
-    .tooltip{
-      font-size:12px;
-      color:#f1f1f1;
-      padding:6px 8px;
-      border-radius:8px;
-      background:#000202;
-      border:1px solid rgba(22, 231, 57, 0.08);
-      margin-left:8px;
-      display:none;
-    }
-    /* small responsive tweak */
-    @media (max-width:420px){
-      .url-text .path{ font-size:13px; }
-    }
+      .tooltip {
+        font-size: 12px;
+        color: #f1f1f1;
+        padding: 6px 8px;
+        border-radius: 8px;
+        background: #000202;
+        border: 1px solid rgba(22, 231, 57, 0.08);
+        margin-left: 8px;
+        display: none;
+      }
+      /* small responsive tweak */
+      @media (max-width: 420px) {
+        .url-text .path {
+          font-size: 13px;
+        }
+      }
+      .new-badge {
+        background: #ff3b30;
+        color: white;
+        padding: 2px 6px;
+        padding-bottom: 4px;
+        margin-right: 6px;
+        font-size: 11px;
+        font-weight: bold;
+        border-radius: 4px;
 
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+
+        display: inline-block;
+        animation: pulseBadge 1.2s infinite ease-in-out;
+      }
+
+      @keyframes pulseBadge {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.1);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
     </style>
   </head>
   <body>
@@ -302,7 +344,7 @@
       <div>
         <button id="themeToggle"><i class="fa-solid fa-moon"></i></button>
         <button id="settingsBtn"><i class="fa-solid fa-gear"></i></button>
-        <button id="guideBtn"><i class="fa-solid fa-question"></i></button>
+        <button id="guideBtn"><i class="fa-solid fa-book"></i></button>
       </div>
     </header>
 
@@ -314,7 +356,7 @@
     </div>
     <div
       id="loadingSpinner"
-      style="display: none; text-align: center; padding: 20px; height:500px; "
+      style="display: none; text-align: center; padding: 20px; height: 500px"
     >
       <i
         class="fa-solid fa-spinner fa-spin"

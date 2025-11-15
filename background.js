@@ -1,3 +1,6 @@
+// background.js - full (with per-project `pro_stat` added)
+// pro_stat: 1 = new project (since last check), 0 = old project
+
 let lastProjectIds = [];
 let preferences = {
   interval: 30,
@@ -27,6 +30,7 @@ Best regards,\n
 [Your Name]`;
 
 const notificationMap = {};
+let badge = 0;
 
 // ---------------------------
 // Load preferences and projects
@@ -58,64 +62,72 @@ async function loadPreferences() {
         profile.title = data.profile.title ?? profile.title;
         profile.summary = data.profile.summary ?? profile.summary;
       }
-      if (data.projects) lastProjectIds = data.projects.map((p) => p.id);
-      console.log(preferences);
-      console.log(profile);
+
+      // If stored projects exist, restore lastProjectIds so we can detect new ones next run
+      if (data.projects && Array.isArray(data.projects)) {
+        lastProjectIds = data.projects.map((p) => p.id);
+      }
+
+      console.log("preferences:", preferences);
+      console.log("profile:", profile);
+      console.log("restored lastProjectIds:", lastProjectIds);
       resolve();
     });
   });
 }
 
 // ---------------------------
-// Setup periodic fetch method 1 using chrome alarm
-// ---------------------------
-
-// function setupAlarm() {
-//   chrome.alarms.clear("checkProjects", () => {
-//     chrome.alarms.create("checkProjects", {
-//       periodInMinutes: preferences.interval,
-//     });
-//   });
-// }
-// ---------------------------
-// Setup periodic fetch method 2 using setinterval
+// Setup periodic fetch (setInterval)
 // ---------------------------
 function setupAlarm() {
   setInterval(() => {
-    console.log("Checking projects every 30 seconds");
+    console.log("Checking projects (interval seconds):", preferences.interval);
     fetchProjects();
-  }, preferences.interval * 1000); // 30000 ms = 30 seconds
+  }, preferences.interval * 1000);
 }
+
 //-------------------------------
-// Listen for a popup connection
-// Send a message to the popup
+// Messaging helper (background -> popup)
+// safe: checks chrome.runtime.lastError to avoid "Receiving end does not exist."
 //--------------------------------
-let connectedPorts = []; // Track the connections
 function sendMessageToPopup(message) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(message, (response) => {
-      console.log("Received response from popup:", response, message);
-      if (response.status == true) {
-        resolve();
+      // If there's a runtime.lastError, there's no receiver (popup closed)
+      if (chrome.runtime.lastError) {
+        // popup not open / not listening
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
       }
-      if (response == undefined || response.status == false || !response)
-        reject();
+
+      // Normal response handling
+      if (!response) {
+        reject(new Error("No response from popup"));
+        return;
+      }
+
+      if (response.status === true) {
+        resolve(response);
+        return;
+      }
+
+      reject(new Error("Popup returned failure"));
     });
   });
 }
+
 // ---------------------------
 // Fetch projects from Freelancer
 // ---------------------------
-// This port for traffic from backend to popup
-//
 async function fetchProjects() {
   try {
     const res = await fetch(
       "https://www.freelancer.com/api/projects/0.1/projects/active/?limit=30"
     );
     const data = await res.json();
-    const projects = data.result.projects || [];
+    const projects = data.result?.projects || [];
 
+    // Step 1: basic map to normalized projects (without pro_stat yet)
     const projectsWithUrl = projects
       .filter((p) => p.currency?.code !== "INR")
       .map((p) => ({
@@ -130,48 +142,56 @@ async function fetchProjects() {
         url: `https://www.freelancer.com/projects/${p.seo_url || p.id}`,
       }));
 
-    const newOnes = projectsWithUrl.filter(
-      (p) => !lastProjectIds.includes(p.id)
-    );
+    // Step 2: Determine which IDs are new compared to lastProjectIds
+    const newProjectIds = projectsWithUrl
+      .filter((p) => !lastProjectIds.includes(p.id))
+      .map((p) => p.id);
 
+    // Step 3: Process the projects and update pro_stat
+    const processedProjects = projectsWithUrl.map((p) => ({
+      ...p,
+      pro_stat: lastProjectIds.includes(p.id) ? 0 : 1, // 0 for old projects, 1 for new
+    }));
+
+    // Step 4: Update lastProjectIds with all project IDs
+    lastProjectIds = processedProjects.map((p) => p.id);
+
+    // Save processed projects to storage
+    chrome.storage.local.set({ projects: processedProjects });
+
+    // Step 5: Send notification or update badge for new projects
+    const newOnes = processedProjects.filter((p) => p.pro_stat === 1);
     if (newOnes.length > 0) {
-      lastProjectIds = projectsWithUrl.map((p) => p.id);
-      chrome.storage.local.set({ projects: projectsWithUrl });
-      // -------------------------------------------------------------
+      badge += newOnes.length;
+      chrome.action.setBadgeText({ text: String(badge) });
+      chrome.action.setBadgeBackgroundColor({ color: "#4d68ffff" });
 
-      sendMessageToPopup({
-        action: "updatePopup",
-      })
-        .then(() => {
-          console.log('notification');
-          // display notification on desktop
-          if (preferences.notifications) {
-            newOnes.forEach((p, i) => {
-              const notifId = String(p.id);
-              notificationMap[notifId] = p.url;
-              setTimeout(() => {
-                chrome.notifications.create(notifId, {
-                  type: "basic",
-                  iconUrl: "icon.png",
-                  title: p.title,
-                  message: `Budget: ${p.currency?.sign || "$"}${
-                    p.budget.minimum
-                  }-${p.budget.maximum} ${p.currency.code} [ ${
-                    p.type[0].toUpperCase() + p.type.slice(1)
-                  } ]
-                    \nClick to view`,
-                  priority: 2,
-                  requireInteraction: preferences.notifications_show_mode,
-                });
-              }, i * 459);
+      // Send message to popup
+      sendMessageToPopup({ action: "updatePopup" }).catch((err) => {
+        console.warn("Could not message popup:", err);
+      });
+
+      // Notify desktop if notifications are enabled
+      if (preferences.notifications) {
+        newOnes.forEach((p, i) => {
+          const notifId = String(p.id);
+          notificationMap[notifId] = p.url;
+          setTimeout(() => {
+            chrome.notifications.create(notifId, {
+              type: "basic",
+              iconUrl: "message_icon.png",
+              title: p.title,
+              message: `Budget: ${p.currency?.sign || "$"}${
+                p.budget?.minimum ?? ""
+              }-${p.budget?.maximum ?? ""} ${p.currency?.code || ""} [ ${
+                p.type ? p.type[0].toUpperCase() + p.type.slice(1) : ""
+              } ]\nClick to view`,
+              priority: 2,
+              requireInteraction: preferences.notifications_show_mode,
             });
-          }
-        })
-        .catch(() => {
-          console.log("Not found new Projects");
+          }, i * 459);
         });
-
-      // --------------------------------------------------------------
+      }
     }
   } catch (err) {
     console.error("Fetch error:", err);
@@ -223,15 +243,16 @@ async function generateAIBid(description) {
             role: "user",
             content:
               `This is project description.(main):\n\n ${description}\n\n` +
-                profile.name &&
-              `Also, reference this:This is my name:${profile.name}\n\n` +
-                profile.title &&
-              `This is my title/role : \n\n ${profile.title}\n\n` +
-                profile.summary &&
-              `This is my summary(not essential):\n\n ${profile.summary}` +
-                `${preferences.BidCondition}\n\n
-                Characters must be no longer than 1500.
-              `,
+              (profile.name
+                ? `Also, reference this:This is my name:${profile.name}\n\n`
+                : "") +
+              (profile.title
+                ? `This is my title/role : \n\n ${profile.title}\n\n`
+                : "") +
+              (profile.summary
+                ? `This is my summary(not essential):\n\n ${profile.summary}`
+                : "") +
+              `${preferences.BidCondition}\n\nCharacters must be no longer than 1500.`,
           },
         ],
         max_tokens: 1500,
@@ -240,7 +261,7 @@ async function generateAIBid(description) {
     });
 
     const data = await resp.json();
-    console.log(data);
+    console.log("AI response:", data);
     return (
       data?.choices?.[0]?.message?.content ||
       (preferences.bidTemplate ? preferences.bidTemplate : TempBid)
@@ -261,54 +282,44 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ success: true });
     }
 
+    if (msg.action === "formatBadge") {
+      badge = 0;
+      chrome.action.setBadgeText({ text: "" });
+      sendResponse({ success: true });
+    }
+
     if (msg.action === "generateBid") {
       const bid = await generateAIBid(msg.description);
       sendResponse({ bid });
     }
+
     if (msg.action === "reloadExtension") {
       chrome.runtime.reload();
     }
 
+    if (msg.action === "clearNewFlags") {
+      chrome.storage.local.get("projects", (data) => {
+        if (!data.projects) return;
+
+        // Update the projects to set 'pro_stat' to 0 for all
+        const updatedProjects = data.projects.map((p) => ({
+          ...p,
+          pro_stat: 0, // reset 'pro_stat' to 0
+        }));
+
+        // Save updated projects to storage
+        chrome.storage.local.set({ projects: updatedProjects });
+
+        // Respond to the popup that the operation was successful
+        sendResponse({ success: true });
+      });
+    }
     if (msg.action === "openProject") {
       const { url } = msg;
       chrome.tabs.create({ url }, (tab) => {
         const listener = async (tabId, changeInfo) => {
           if (tabId === tab.id && changeInfo.status === "complete") {
-            // Step 1: get full description from project page
-            // const [{ result: fullDescription }] =
-            //   await chrome.scripting.executeScript({
-            //     target: { tabId: tab.id },
-            //     func: () => {
-            //       function getProjectDescription() {
-            //         const el = document.querySelector(
-            //           "span.font-normal.text-foreground.text-xsmall.whitespace-pre-line"
-            //         );
-            //         return (
-            //           el?.innerText?.trim() ||
-            //           document.body.innerText.slice(0, 3000)
-            //         );
-            //       }
-            //       return getProjectDescription();
-            //     },
-            //   });
-            // console.log(fullDescription);
-            // // Step 2: send full description to AI (generate bid)
-            // const bidText =
-            //   (await generateAIBid(fullDescription)) ||
-            //   "Hello, I hope you're doing well...\n\nBest regards,\n[Your Name]";
-            // // Step 3: fill textarea
-            // await chrome.scripting.executeScript({
-            //   target: { tabId: tab.id },
-            //   func: (bid) => {
-            //     const textarea = document.querySelector("#descriptionTextArea");
-            //     if (textarea) {
-            //       textarea.value = bid;
-            //       textarea.dispatchEvent(new Event("input", { bubbles: true }));
-            //     }
-            //   },
-            //   args: [bidText],
-            // });
-            // chrome.tabs.onUpdated.removeListener(listener);
+            chrome.tabs.onUpdated.removeListener(listener);
           }
         };
 
@@ -318,7 +329,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ success: true });
     }
   })();
-  return true; // keep async response open
+
+  return true; // keep the message channel open
 });
 
 // ---------------------------

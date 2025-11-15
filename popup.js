@@ -6,7 +6,6 @@ function sendMessageAsync(msg) {
     chrome.runtime.sendMessage(msg, (resp) => resolve(resp));
   });
 }
-
 // Load theme preference from local storage
 chrome.storage.local.get("darkMode", (data) => {
   darkMode = !!data.darkMode;
@@ -15,6 +14,10 @@ chrome.storage.local.get("darkMode", (data) => {
     ? '<i class="fa-solid fa-sun"></i>'
     : '<i class="fa-solid fa-moon"></i>';
 });
+// reload source
+chrome.action.setBadgeText({ text: "" });//remove badge num
+chrome.runtime.sendMessage({action:'formatBadge'});//format badage num 0;
+chrome.runtime.sendMessage({ action: "clearNewFlags" });// Listen for the popup opening and reset 'pro_stat' values
 
 // Render projects in the popup
 function renderProjects(projects) {
@@ -44,7 +47,7 @@ function renderProjects(projects) {
       : "";
 
     div.innerHTML = `
-      <div class="title"><i class="fa-solid fa-briefcase"></i> ${p.title}</div>
+      <div class="title">  ${p.pro_stat === 1 ? `<span class="new-badge">NEW</span>` : ""}<i class="fa-solid fa-briefcase"></i>${" "+p.title}</div>
       <div class="price">
         <span style="font-weight:bold;">${p.currency.sign} ${
       p.budget.minimum
@@ -66,10 +69,10 @@ function renderProjects(projects) {
       <button class="copy-btn"  aria-label="Copy link" title="Copy link">
         <!-- simple clipboard SVG -->
         <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
-          <rect x="9" y="2" width="8" height="4" rx="1.2" stroke="#0f172a" stroke-width="1.2" fill="none"></rect>
-          <rect x="6.5" y="6" width="10.5" height="13" rx="2" stroke="#0f172a" stroke-width="1.2" fill="none"></rect>
+          <rect x="9" y="2" width="8" height="4" rx="1.2" stroke="#38e66cff" stroke-width="1.2" fill="none"></rect>
+          <rect x="6.5" y="6" width="10.5" height="13" rx="2" stroke="#38e66cff" stroke-width="1.2" fill="none"></rect>
         </svg>
-        <span style="font-size:13px;color:#0f172a">Copy</span>
+        <span style="font-size:13px;color:#38e66cff">Copy</span>
       </button>
       <div class="tooltip" id=${p.id} role="status" aria-live="polite">Copied!</div>
     `;
@@ -86,7 +89,6 @@ function renderProjects(projects) {
     container.appendChild(div);
   });
 }
-
 // Load projects from local storage
 chrome.storage.local.get("projects", (data) => {
   if (data.projects) {
@@ -97,7 +99,6 @@ chrome.storage.local.get("projects", (data) => {
     renderProjects(allProjects);
   }
 });
-
 // Search for projects based on the input
 document.getElementById("search").addEventListener("input", (e) => {
   const keyword = e.target.value.toLowerCase();
@@ -108,9 +109,9 @@ document.getElementById("search").addEventListener("input", (e) => {
   );
   renderProjects(filtered);
 });
-
 // Listen for messages from the background script
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  console.log(msg);
   if (msg.action === "updatePopup") {
     chrome.storage.local.get("projects", (data) => {
       if (data.projects) {
@@ -120,15 +121,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             .split(" ")
             .slice(0, 5)
             .join(" ")}...`,
-        }));
-        renderProjects(allProjects); // Re-render the projects with updated data
-      }
-    });
-    sendResponse({ status: true }); // Optional response back
+          }));
+          renderProjects(allProjects); // Re-render the projects with updated data
+        }
+        sendResponse({ status: true }); // Optional response back
+      });
+      return true;
     // Update the popup UI with the received data
   }
 });
-
 // Refresh projects
 document.getElementById("refresh").addEventListener("click", async () => {
   document.getElementById("loadingSpinner").style.display = "block";
@@ -152,7 +153,6 @@ document.getElementById("refresh").addEventListener("click", async () => {
     }
   });
 });
-
 // Toggle theme
 document.getElementById("themeToggle").addEventListener("click", () => {
   darkMode = !darkMode;
@@ -162,7 +162,6 @@ document.getElementById("themeToggle").addEventListener("click", () => {
     : '<i class="fa-solid fa-moon"></i>';
   chrome.storage.local.set({ darkMode });
 });
-
 // Open the options page when the settings button is clicked
 document.getElementById("settingsBtn").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
@@ -170,14 +169,19 @@ document.getElementById("settingsBtn").addEventListener("click", () => {
 document.getElementById("guideBtn").addEventListener("click", () => {
   window.open(chrome.runtime.getURL("guide.html"), "_blank");
 });
-document.getElementById("zommPage").addEventListener("click", () => {
-  window.open(chrome.runtime.getURL("zommPage.html"), "_blank");
+document.addEventListener("DOMContentLoaded", function() {
+  const zoomPageButton = document.getElementById("zommPage");
+  if (zoomPageButton) {
+    zoomPageButton.addEventListener("click", () => {
+      window.open(chrome.runtime.getURL("zommPage.html"), "_blank");
+    });
+  }
+  return;
 });
 //Link copy function
 
 //Link Copy function
 // const tooltip = document.getElementById("tooltip");
-
 async function copyToClipboard(text,id) {
   const tooltip = document.getElementById("tooltip");
   try {
@@ -206,18 +210,3 @@ async function copyToClipboard(text,id) {
     setTimeout(() => (tooltip.style.display = "none"), 1500);
   }
 }
-
-// function showTooltip(message) {
-//   tooltip.textContent = message;
-//   tooltip.style.display = "block";
-//   setTimeout(() => (tooltip.style.display = "none"), 1500);
-// }
-
-// // make URL selectable on click (optional nicety)
-// document.getElementById("urlText").addEventListener("click", () => {
-//   const range = document.createRange();
-//   range.selectNodeContents(document.getElementById("urlText"));
-//   const sel = window.getSelection();
-//   sel.removeAllRanges();
-//   sel.addRange(range);
-// });
